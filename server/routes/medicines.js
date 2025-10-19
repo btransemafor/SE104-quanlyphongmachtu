@@ -1,7 +1,7 @@
-const express = require('express');
-const { body, validationResult } = require('express-validator');
-const pool = require('../config/database');
-const { authenticateToken, authorizeRoles } = require('../middleware/auth');
+const express = require("express");
+const { body, validationResult } = require("express-validator");
+const pool = require("../config/database");
+const { authenticateToken, authorizeRoles } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -11,9 +11,9 @@ const router = express.Router();
  *  Get all medicines (with pagination, search, and filter by active)
  * ============================
  */
-router.get('/', authenticateToken, async (req, res) => {
+router.get("/", authenticateToken, async (req, res) => {
   try {
-    const { search, page = 1, limit = 10, active_only = 'true' } = req.query;
+    const { search, page = 1, limit = 10, active_only = "true" } = req.query;
     const offset = (page - 1) * limit;
 
     let query = `
@@ -24,7 +24,7 @@ router.get('/', authenticateToken, async (req, res) => {
     `;
     const params = [];
 
-    if (active_only === 'true') {
+    if (active_only === "true") {
       params.push(true);
       query += ` AND m.is_active = $${params.length}`;
     }
@@ -35,14 +35,16 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     params.push(limit, offset);
-    query += ` ORDER BY m.name ASC LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    query += ` ORDER BY m.name ASC LIMIT $${params.length - 1} OFFSET $${
+      params.length
+    }`;
 
     const result = await pool.query(query, params);
 
     // Count total for pagination
-    let countQuery = 'SELECT COUNT(*) FROM medicines WHERE 1=1';
+    let countQuery = "SELECT COUNT(*) FROM medicines WHERE 1=1";
     const countParams = [];
-    if (active_only === 'true') {
+    if (active_only === "true") {
       countParams.push(true);
       countQuery += ` AND is_active = $${countParams.length}`;
     }
@@ -51,7 +53,9 @@ router.get('/', authenticateToken, async (req, res) => {
       countQuery += ` AND name ILIKE $${countParams.length}`;
     }
 
-    const total = parseInt((await pool.query(countQuery, countParams)).rows[0].count);
+    const total = parseInt(
+      (await pool.query(countQuery, countParams)).rows[0].count
+    );
 
     res.json({
       success: true,
@@ -60,22 +64,25 @@ router.get('/', authenticateToken, async (req, res) => {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / limit),
         totalItems: total,
-        itemsPerPage: parseInt(limit)
-      }
+        itemsPerPage: parseInt(limit),
+      },
     });
-
   } catch (err) {
-    console.error('Get medicines error:', err);
-    res.status(500).json({ success: false, message: 'Server error while fetching medicines' });
+    console.error("Get medicines error:", err);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Server error while fetching medicines",
+      });
   }
 });
 
-
 /// Fetch Thuốc dựa theo phiếu nhập thuốc /api/available-medicines
 //  Lấy danh sách thuốc khả dụng (ưu tiên lô cũ nhất còn hàng)
-router.get('/available-medicines', authenticateToken, async (req, res) => {
+router.get("/available-medicines", authenticateToken, async (req, res) => {
   try {
-    const { search, page = 1, limit = 10, active_only = 'true' } = req.query;
+    const { search, page = 1, limit = 10, active_only = "true" } = req.query;
     const offset = (page - 1) * limit;
 
     //  Query chính dùng CTE để phân biệt batch cũ nhất
@@ -93,8 +100,8 @@ router.get('/available-medicines', authenticateToken, async (req, res) => {
           b.remaining_quantity,
           b.unit_price,
           ir.receipt_date,
-          --  Xếp hạng các batch theo ngày nhập
-          ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY ir.receipt_date ASC) AS row_num,
+          --  Xếp hạng các batch theo ưu tiên này hết hạn,  ngày nhập
+          ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY b.expiry_date ASC NULLS LAST, ir.receipt_date ASC) AS row_num,
           --  Tổng tồn kho của thuốc (gộp mọi batch)
           COALESCE(SUM(b.remaining_quantity) OVER (PARTITION BY m.id), 0) AS total_stock,
           --  Gợi ý giá bán = giá nhập * 1.2 (lãi 20%)
@@ -113,7 +120,7 @@ router.get('/available-medicines', authenticateToken, async (req, res) => {
     const params = [];
 
     //  Lọc theo trạng thái hoạt động
-    if (active_only === 'true') {
+    if (active_only === "true") {
       params.push(true);
       query += ` AND is_active = $${params.length}`;
     }
@@ -126,7 +133,9 @@ router.get('/available-medicines', authenticateToken, async (req, res) => {
 
     //  Phân trang
     params.push(limit, offset);
-    query += ` ORDER BY name ASC LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    query += ` ORDER BY name ASC LIMIT $${params.length - 1} OFFSET $${
+      params.length
+    }`;
 
     //  Thực thi
     const result = await pool.query(query, params);
@@ -139,7 +148,7 @@ router.get('/available-medicines', authenticateToken, async (req, res) => {
       WHERE b.remaining_quantity > 0
     `;
     const countParams = [];
-    if (active_only === 'true') {
+    if (active_only === "true") {
       countParams.push(true);
       countQuery += ` AND m.is_active = $${countParams.length}`;
     }
@@ -148,7 +157,9 @@ router.get('/available-medicines', authenticateToken, async (req, res) => {
       countQuery += ` AND m.name ILIKE $${countParams.length}`;
     }
 
-    const total = parseInt((await pool.query(countQuery, countParams)).rows[0].count);
+    const total = parseInt(
+      (await pool.query(countQuery, countParams)).rows[0].count
+    );
 
     //  Kết quả trả về
     res.json({
@@ -158,16 +169,19 @@ router.get('/available-medicines', authenticateToken, async (req, res) => {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / limit),
         totalItems: total,
-        itemsPerPage: parseInt(limit)
-      }
+        itemsPerPage: parseInt(limit),
+      },
     });
-
   } catch (err) {
-    console.error('❌ Get available medicines error:', err);
-    res.status(500).json({ success: false, message: 'Server error while fetching medicines' });
+    console.error("❌ Get available medicines error:", err);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Server error while fetching medicines",
+      });
   }
 });
-
 
 /**
  * ============================
@@ -175,7 +189,7 @@ router.get('/available-medicines', authenticateToken, async (req, res) => {
  *  Get medicine by ID
  * ============================
  */
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get("/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -201,19 +215,19 @@ router.get('/:id', authenticateToken, async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'Medicine not found'
+        message: "Medicine not found",
       });
     }
 
     res.json({
       success: true,
-      data: result.rows[0]
+      data: result.rows[0],
     });
   } catch (err) {
-    console.error('Get medicine error:', err);
+    console.error("Get medicine error:", err);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching medicine'
+      message: "Server error while fetching medicine",
     });
   }
 });
@@ -225,12 +239,12 @@ router.get('/:id', authenticateToken, async (req, res) => {
  * ============================
  */
 router.post(
-  '/',
+  "/",
   [
     authenticateToken,
-    authorizeRoles('admin'),
-    body('name').notEmpty().withMessage('Medicine name is required'),
-    body('unit_id').notEmpty().withMessage('Unit is required'),
+    authorizeRoles("admin"),
+    body("name").notEmpty().withMessage("Medicine name is required"),
+    body("unit_id").notEmpty().withMessage("Unit is required"),
     //body('price').isFloat({ min: 0 }).withMessage('Price must be positive')
   ],
   async (req, res) => {
@@ -243,12 +257,14 @@ router.post(
 
       // Check duplicate
       const exists = await pool.query(
-        'SELECT id FROM medicines WHERE name = $1 AND unit_id = $2',
+        "SELECT id FROM medicines WHERE name = $1 AND unit_id = $2",
         [name, unit_id]
       );
 
       if (exists.rows.length > 0)
-        return res.status(400).json({ success: false, message: 'Medicine already exists' });
+        return res
+          .status(400)
+          .json({ success: false, message: "Medicine already exists" });
 
       const result = await pool.query(
         `INSERT INTO medicines (name, unit_id, desciption, quanity)
@@ -257,10 +273,21 @@ router.post(
         [name, unit_id, description, quantity]
       );
 
-      res.status(201).json({ success: true, message: 'Medicine created', data: result.rows[0] });
+      res
+        .status(201)
+        .json({
+          success: true,
+          message: "Medicine created",
+          data: result.rows[0],
+        });
     } catch (err) {
-      console.error('Create medicine error:', err);
-      res.status(500).json({ success: false, message: 'Server error while creating medicine' });
+      console.error("Create medicine error:", err);
+      res
+        .status(500)
+        .json({
+          success: false,
+          message: "Server error while creating medicine",
+        });
     }
   }
 );
@@ -272,14 +299,14 @@ router.post(
  * ============================
  */
 router.put(
-  '/:id',
+  "/:id",
   [
     authenticateToken,
-    authorizeRoles('admin'),
-    body('name').optional().notEmpty(),
-    body('unit_id').optional().notEmpty(),
+    authorizeRoles("admin"),
+    body("name").optional().notEmpty(),
+    body("unit_id").optional().notEmpty(),
     //body('price').optional().isFloat({ min: 0 }),
-    body('is_active').optional().isBoolean()
+    body("is_active").optional().isBoolean(),
   ],
   async (req, res) => {
     try {
@@ -290,16 +317,22 @@ router.put(
       const { id } = req.params;
       const { name, unit_id, is_active, description, quantity } = req.body;
 
-      const check = await pool.query('SELECT id FROM medicines WHERE id = $1', [id]);
+      const check = await pool.query("SELECT id FROM medicines WHERE id = $1", [
+        id,
+      ]);
       if (check.rows.length === 0)
-        return res.status(404).json({ success: false, message: 'Medicine not found' });
+        return res
+          .status(404)
+          .json({ success: false, message: "Medicine not found" });
 
       const duplicate = await pool.query(
-        'SELECT id FROM medicines WHERE name = $1 AND unit_id = $2 AND id != $3',
+        "SELECT id FROM medicines WHERE name = $1 AND unit_id = $2 AND id != $3",
         [name, unit_id, id]
       );
       if (duplicate.rows.length > 0)
-        return res.status(400).json({ success: false, message: 'Duplicate medicine' });
+        return res
+          .status(400)
+          .json({ success: false, message: "Duplicate medicine" });
 
       const result = await pool.query(
         `UPDATE medicines
@@ -314,10 +347,19 @@ router.put(
         [name, unit_id, is_active, description, id, quantity]
       );
 
-      res.json({ success: true, message: 'Medicine updated', data: result.rows[0] });
+      res.json({
+        success: true,
+        message: "Medicine updated",
+        data: result.rows[0],
+      });
     } catch (err) {
-      console.error('Update medicine error:', err);
-      res.status(500).json({ success: false, message: 'Server error while updating medicine' });
+      console.error("Update medicine error:", err);
+      res
+        .status(500)
+        .json({
+          success: false,
+          message: "Server error while updating medicine",
+        });
     }
   }
 );
@@ -328,23 +370,36 @@ router.put(
  *  Soft delete (set inactive)
  * ============================
  */
-router.delete('/:id', [authenticateToken, authorizeRoles('admin')], async (req, res) => {
-  try {
-    const { id } = req.params;
-    const check = await pool.query('SELECT id FROM medicines WHERE id = $1', [id]);
-    if (check.rows.length === 0)
-      return res.status(404).json({ success: false, message: 'Medicine not found' });
+router.delete(
+  "/:id",
+  [authenticateToken, authorizeRoles("admin")],
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const check = await pool.query("SELECT id FROM medicines WHERE id = $1", [
+        id,
+      ]);
+      if (check.rows.length === 0)
+        return res
+          .status(404)
+          .json({ success: false, message: "Medicine not found" });
 
-    await pool.query('UPDATE medicines SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+      await pool.query(
+        "UPDATE medicines SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+        [id]
+      );
 
-    res.json({ success: true, message: 'Medicine deleted successfully' });
-  } catch (err) {
-    console.error('Delete medicine error:', err);
-    res.status(500).json({ success: false, message: 'Server error while deleting medicine' });
+      res.json({ success: true, message: "Medicine deleted successfully" });
+    } catch (err) {
+      console.error("Delete medicine error:", err);
+      res
+        .status(500)
+        .json({
+          success: false,
+          message: "Server error while deleting medicine",
+        });
+    }
   }
-});
-
-
-
+);
 
 module.exports = router;
